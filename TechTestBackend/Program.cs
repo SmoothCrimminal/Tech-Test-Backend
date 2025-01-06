@@ -10,7 +10,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContextFactory<SongsStorageContext>(options => options.UseInMemoryDatabase("Songstorage"));
+builder.Services.AddDbContextFactory<SongsStorageContext>(options => options.UseInMemoryDatabase("SongsStorage"));
 
 var app = builder.Build();
 

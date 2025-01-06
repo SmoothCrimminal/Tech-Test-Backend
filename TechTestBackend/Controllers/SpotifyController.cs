@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace TechTestBackend.Controllers;
 
@@ -7,10 +8,12 @@ namespace TechTestBackend.Controllers;
 public class SpotifyController : ControllerBase
 {
     private readonly ILogger<SpotifyController> _logger;
+    private readonly SongsStorageContext _songsStorageContext;
 
-    public SpotifyController(ILogger<SpotifyController> logger)
+    public SpotifyController(ILogger<SpotifyController> logger, SongsStorageContext songsStorageContext)
     {
         _logger = logger;
+        _songsStorageContext = songsStorageContext;
     }
 
     [HttpGet]
@@ -34,13 +37,11 @@ public class SpotifyController : ControllerBase
 
     [HttpPost]
     [Route("like")]
-    public IActionResult Like(string id)
+    public async Task<IActionResult> LikeAsync(string id)
     {
         if (!IsSpotifyIdCorrect(id))
             return BadRequest($"Provided id: {id} has invalid length");
 
-        object storage = HttpContext.RequestServices.GetService(typeof(SongsStorageContext));
-        
         var track = SpotifyHelper.GetTrack(id);
         if (track is null)
         {
@@ -55,14 +56,15 @@ public class SpotifyController : ControllerBase
         {
             //crashes sometimes for some reason
             // we   have to look into this
-            ((SongsStorageContext)storage).Songs.Add(song);
+            await _songsStorageContext.Songs.AddAsync(song);
             
-            ((SongsStorageContext)storage).SaveChanges();
+            await _songsStorageContext.SaveChangesAsync();
         }
         catch (Exception e)
         {
-            // not sure if this is the best way to handle this
-            return Ok();
+            _logger.LogError(e, "Could not like song with id: {id}", id);
+
+            return StatusCode(500);
         }
         
         return Ok();
@@ -70,27 +72,25 @@ public class SpotifyController : ControllerBase
     
     [HttpPost]
     [Route("removeLike")]
-    public IActionResult RemoveLike(string id)
+    public async Task<IActionResult> RemoveLikeAsync(string id)
     {
         if (!IsSpotifyIdCorrect(id))
             return BadRequest($"Provided id: {id} has invalid length");
-
-        object storage = HttpContext.RequestServices.GetService(typeof(SongsStorageContext));
         
         var track = SpotifyHelper.GetTrack(id);
-        if(track is null)
+        if (track is null)
         {
             return NotFound();
         }
 
         try
         {
-            ((SongsStorageContext)storage).Songs.Remove(track); // this is not working every tume
-            ((SongsStorageContext)storage).SaveChanges();
+            _songsStorageContext.Songs.Remove(track); // this is not working every tume
+            await _songsStorageContext.SaveChangesAsync();
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Could not remove track with id: {id}", id);
+            _logger.LogError(e, "Could not remove track with id: {Id}", id);
 
             return StatusCode(500);
         }
@@ -100,71 +100,43 @@ public class SpotifyController : ControllerBase
     
     [HttpGet]
     [Route("listLiked")]
-    public IActionResult ListLiked()
+    public async Task<IActionResult> ListLikedAsync()
     {
-        object storage = HttpContext.RequestServices.GetService(typeof(SongsStorageContext));
+        var likedSongs = new List<SpotifySong>();
 
-        int songsnumber = ((SongsStorageContext)storage).Songs.Count();
-        List<SpotifySong> songs = new List<SpotifySong>(); //((SongstorageContext)storage).Songs.ToList();
+        var songs = _songsStorageContext.Songs.AsNoTracking();
+        if (!songs.Any())
+            return Ok();
 
-        if (songsnumber > 0)
+        var wasAnySongRemoved = false;
+
+        foreach (var song in songs)
         {
-            for (int i = 0; i <= songsnumber - 1; i++)
-            {
-                string songid = ((SongsStorageContext)HttpContext.RequestServices.GetService(typeof(SongsStorageContext))).Songs.ToList()[i].Id;
-            
-                var track = SpotifyHelper.GetTrack(songid);
-                if(track.Id == null)
-                {
-                    // TODO: remove song from database, but not sure how
-                }
-                else
-                {
-                    // not working for some reason so we have to do the check manually for now
-                    // if(SongExists(track.Id) == false)
-                    
-                    int numerofsong = songs.Count();
-                    for (int num = 0; num <= numerofsong; num++)
-                    {
-                        try
-                        {
-                            if(songs[num].Id == songid)
-                            {
-                                break;
-                            }
-                            else if(num == numerofsong - 1)
-                            {
+            if (song is null)
+                continue;
 
-                                for (int namenum = 0; namenum < numerofsong; namenum++)
-                                {
-                                    if(songs[namenum].Name == track.Name)
-                                    {
-                                        break; // we dont want to add the same song twice
-                                        //does this break work?
-                                    }
-                                    else if(namenum == numerofsong - 1)
-                                    {
-                                        songs.Add(((SongsStorageContext)storage).Songs.ToList()[i]);
-                                    }
-                                }
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            // something went wrong, but it's not important
-                            songs.Add(((SongsStorageContext)storage).Songs.ToList()[i]);
-                        }
-                    }
-                }
+            var track = SpotifyHelper.GetTrack(song.Id);
+            if (track is null)
+            {
+                wasAnySongRemoved = true;
+
+                _songsStorageContext.Songs.Remove(song);
+            }
+            else
+            {
+                if (likedSongs.Any(ls => ls.Name == track.Name))
+                    continue;
+
+                likedSongs.Add(song);             
             }
         }
 
-        return Ok(songs);
-    }
-    
-    private bool SongExists(string id)
-    {
-        return ((SongsStorageContext)HttpContext.RequestServices.GetService(typeof(SongsStorageContext))).Songs.First(e => e.Id == id) != null;
+        if (wasAnySongRemoved)
+        {
+            await _songsStorageContext.SaveChangesAsync();
+        }
+
+        return Ok(likedSongs);
     }
     
     private bool IsSpotifyIdCorrect(string id)
