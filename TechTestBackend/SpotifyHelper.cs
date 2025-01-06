@@ -6,7 +6,7 @@ namespace TechTestBackend;
 
 public static class SpotifyHelper
 {
-    public static Soptifysong[] GetTracks(string name)
+    public static SpotifySong[] GetTracks(string name)
     {
         var client = new HttpClient();
         var c_id = "996d0037680544c987287a9b0470fdbb";
@@ -24,12 +24,12 @@ public static class SpotifyHelper
         var response = client.GetAsync("https://api.spotify.com/v1/search?q=" + name + "&type=track").Result;
         dynamic objects = JsonConvert.DeserializeObject(response.Content.ReadAsStringAsync().Result);
 
-        var songs = JsonConvert.DeserializeObject<Soptifysong[]>(objects.tracks.items.ToString());
+        var songs = JsonConvert.DeserializeObject<SpotifySong[]>(objects.tracks.items.ToString());
         
         return songs;
     }
 
-    public static Soptifysong GetTrack(string id)
+    public static SpotifySong GetTrack(string id)
     {
         var client = new HttpClient();
         var c_id = "996d0037680544c987287a9b0470fdbb";
@@ -47,7 +47,7 @@ public static class SpotifyHelper
         var response = client.GetAsync("https://api.spotify.com/v1/tracks/" + id + "/").Result;
         dynamic objects = JsonConvert.DeserializeObject(response.Content.ReadAsStringAsync().Result);
 
-        var song = JsonConvert.DeserializeObject<Soptifysong>(objects.ToString());
+        var song = JsonConvert.DeserializeObject<SpotifySong>(objects.ToString());
         
         return song;
     }
