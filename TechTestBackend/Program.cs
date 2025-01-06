@@ -1,5 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using TechTestBackend;
+using TechTestBackend.DelegatingHandlers;
+using TechTestBackend.Extensions;
+using TechTestBackend.Interfaces;
+using TechTestBackend.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +15,11 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContextFactory<SongsStorageContext>(options => options.UseInMemoryDatabase("SongsStorage"));
+builder.Services.AddConfigurations(builder.Configuration);
+builder.Services.AddHttpClients();
+
+builder.Services.AddScoped<ITracksService, SpotifyService>();
+builder.Services.AddTransient<SpotifyAuthenticationHandler>();
 
 var app = builder.Build();
 

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TechTestBackend.Interfaces;
 
 namespace TechTestBackend.Controllers;
 
@@ -9,21 +10,23 @@ public class SpotifyController : ControllerBase
 {
     private readonly ILogger<SpotifyController> _logger;
     private readonly SongsStorageContext _songsStorageContext;
+    private readonly ITracksService _spotifyTrackService;
 
-    public SpotifyController(ILogger<SpotifyController> logger, SongsStorageContext songsStorageContext)
+    public SpotifyController(ILogger<SpotifyController> logger, SongsStorageContext songsStorageContext, ITracksService spotifyTrackService)
     {
         _logger = logger;
         _songsStorageContext = songsStorageContext;
+        _spotifyTrackService = spotifyTrackService;
     }
 
     [HttpGet]
     [Route("searchTracks")]
-    public IActionResult SearchTracks(string trackName)
+    public async Task<IActionResult> SearchTracks(string trackName)
     {
         try
         {        
             // TODO: Implement this method
-            var tracks = SpotifyHelper.GetTracks(trackName);
+            var tracks = await _spotifyTrackService.GetTracksAsync(trackName);
 
             return Ok(tracks);
         }
@@ -42,20 +45,18 @@ public class SpotifyController : ControllerBase
         if (!IsSpotifyIdCorrect(id))
             return BadRequest($"Provided id: {id} has invalid length");
 
-        var track = SpotifyHelper.GetTrack(id);
+        var track = await _spotifyTrackService.GetTrackAsync(id);
         if (track is null)
         {
             return NotFound();
         }
 
-        var song = new SpotifySong(); //create new song
+        var song = new SpotifySong();
         song.Id = id;
         song.Name = track.Name;
 
         try
         {
-            //crashes sometimes for some reason
-            // we   have to look into this
             await _songsStorageContext.Songs.AddAsync(song);
             
             await _songsStorageContext.SaveChangesAsync();
@@ -76,8 +77,8 @@ public class SpotifyController : ControllerBase
     {
         if (!IsSpotifyIdCorrect(id))
             return BadRequest($"Provided id: {id} has invalid length");
-        
-        var track = SpotifyHelper.GetTrack(id);
+
+        var track = await _spotifyTrackService.GetTrackAsync(id);
         if (track is null)
         {
             return NotFound();
@@ -85,7 +86,7 @@ public class SpotifyController : ControllerBase
 
         try
         {
-            _songsStorageContext.Songs.Remove(track); // this is not working every tume
+            //_songsStorageContext.Songs.Remove(track); // this is not working every tume
             await _songsStorageContext.SaveChangesAsync();
         }
         catch (Exception e)
@@ -115,7 +116,7 @@ public class SpotifyController : ControllerBase
             if (song is null)
                 continue;
 
-            var track = SpotifyHelper.GetTrack(song.Id);
+            var track = await _spotifyTrackService.GetTrackAsync(song.Id);
             if (track is null)
             {
                 wasAnySongRemoved = true;
