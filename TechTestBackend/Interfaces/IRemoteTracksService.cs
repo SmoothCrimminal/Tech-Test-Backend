@@ -2,9 +2,9 @@
 
 namespace TechTestBackend.Interfaces
 {
-    public interface ITracksService
+    public interface IRemoteTracksService
     {
-        Task<IEnumerable<SpotifySongDto>?> GetTracksAsync(string trackName);
+        Task<IEnumerable<SpotifySongDto>?> GetTracksByNameAsync(string trackName);
         Task<SpotifySongDto?> GetTrackAsync(string id);
     }
 }

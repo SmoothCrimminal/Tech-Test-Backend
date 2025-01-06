@@ -18,7 +18,8 @@ builder.Services.AddDbContextFactory<SongsStorageContext>(options => options.Use
 builder.Services.AddConfigurations(builder.Configuration);
 builder.Services.AddHttpClients();
 
-builder.Services.AddScoped<ITracksService, SpotifyService>();
+builder.Services.AddScoped<IRemoteTracksService, SpotifyRemoteService>();
+builder.Services.AddScoped<SpotifyService>();
 builder.Services.AddTransient<SpotifyAuthenticationHandler>();
 
 var app = builder.Build();

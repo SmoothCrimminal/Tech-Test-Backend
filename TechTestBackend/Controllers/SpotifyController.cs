@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using TechTestBackend.Interfaces;
+using TechTestBackend.Services;
 
 namespace TechTestBackend.Controllers;
 
@@ -8,65 +7,27 @@ namespace TechTestBackend.Controllers;
 [Route("api/spotify")]
 public class SpotifyController : ControllerBase
 {
-    private readonly ILogger<SpotifyController> _logger;
-    private readonly SongsStorageContext _songsStorageContext;
-    private readonly ITracksService _spotifyTrackService;
+    private readonly SpotifyService _spotifyService;
 
-    public SpotifyController(ILogger<SpotifyController> logger, SongsStorageContext songsStorageContext, ITracksService spotifyTrackService)
+    public SpotifyController(SpotifyService spotifyService)
     {
-        _logger = logger;
-        _songsStorageContext = songsStorageContext;
-        _spotifyTrackService = spotifyTrackService;
+        _spotifyService = spotifyService;
     }
 
     [HttpGet]
     [Route("searchTracks")]
-    public async Task<IActionResult> SearchTracks(string trackName)
+    public async Task<IActionResult> SearchTracksAsync(string trackName)
     {
-        try
-        {        
-            // TODO: Implement this method
-            var tracks = await _spotifyTrackService.GetTracksAsync(trackName);
+       var tracks = await _spotifyService.GetTracksByNameAsync(trackName);
 
-            return Ok(tracks);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Could not find track with name: {TrackName}", trackName);
-
-            return NotFound();
-        }
+        return Ok(tracks);
     }
 
     [HttpPost]
     [Route("like")]
     public async Task<IActionResult> LikeAsync(string id)
     {
-        if (!IsSpotifyIdCorrect(id))
-            return BadRequest($"Provided id: {id} has invalid length");
-
-        var track = await _spotifyTrackService.GetTrackAsync(id);
-        if (track is null)
-        {
-            return NotFound();
-        }
-
-        var song = new SpotifySong();
-        song.Id = id;
-        song.Name = track.Name;
-
-        try
-        {
-            await _songsStorageContext.Songs.AddAsync(song);
-            
-            await _songsStorageContext.SaveChangesAsync();
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Could not like song with id: {id}", id);
-
-            return StatusCode(500);
-        }
+       await _spotifyService.AddSongAsync(id);
         
         return Ok();
     }
@@ -75,26 +36,7 @@ public class SpotifyController : ControllerBase
     [Route("removeLike")]
     public async Task<IActionResult> RemoveLikeAsync(string id)
     {
-        if (!IsSpotifyIdCorrect(id))
-            return BadRequest($"Provided id: {id} has invalid length");
-
-        var track = await _spotifyTrackService.GetTrackAsync(id);
-        if (track is null)
-        {
-            return NotFound();
-        }
-
-        try
-        {
-            //_songsStorageContext.Songs.Remove(track); // this is not working every tume
-            await _songsStorageContext.SaveChangesAsync();
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Could not remove track with id: {Id}", id);
-
-            return StatusCode(500);
-        }
+       await _spotifyService.RemoveSongAsync(id);
         
         return Ok();
     }
@@ -103,45 +45,8 @@ public class SpotifyController : ControllerBase
     [Route("listLiked")]
     public async Task<IActionResult> ListLikedAsync()
     {
-        var likedSongs = new List<SpotifySong>();
-
-        var songs = _songsStorageContext.Songs.AsNoTracking();
-        if (!songs.Any())
-            return Ok();
-
-        var wasAnySongRemoved = false;
-
-        foreach (var song in songs)
-        {
-            if (song is null)
-                continue;
-
-            var track = await _spotifyTrackService.GetTrackAsync(song.Id);
-            if (track is null)
-            {
-                wasAnySongRemoved = true;
-
-                _songsStorageContext.Songs.Remove(song);
-            }
-            else
-            {
-                if (likedSongs.Any(ls => ls.Name == track.Name))
-                    continue;
-
-                likedSongs.Add(song);             
-            }
-        }
-
-        if (wasAnySongRemoved)
-        {
-            await _songsStorageContext.SaveChangesAsync();
-        }
+        var likedSongs = await _spotifyService.ListAsync();
 
         return Ok(likedSongs);
-    }
-    
-    private bool IsSpotifyIdCorrect(string id)
-    {
-        return id.Length == 22;
     }
 }
