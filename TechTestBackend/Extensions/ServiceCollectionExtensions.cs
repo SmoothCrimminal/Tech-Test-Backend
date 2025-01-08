@@ -1,10 +1,7 @@
 ﻿using Microsoft.Extensions.Options;
-using System.Net.Http.Headers;
-using System.Text;
 using TechTestBackend.Configurations;
 using TechTestBackend.Constants;
 using TechTestBackend.DelegatingHandlers;
-using TechTestBackend.Dtos;
 
 namespace TechTestBackend.Extensions
 {
