@@ -123,7 +123,7 @@ namespace TechTestBackend.Services
                 }
             }
 
-            return likedSongsResult.WithData(songs).WithStatusCode(StatusCode.Success);
+            return likedSongsResult.WithData(likedSongs).WithStatusCode(StatusCode.Success);
         }
     }
 }
