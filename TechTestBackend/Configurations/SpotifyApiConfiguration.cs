@@ -2,8 +2,8 @@
 {
     public class SpotifyApiConfiguration
     {
-        public string ClientId { get; set; }
-        public string ClientSecret { get; set; }
-        public string BaseAddress { get; set; }
+        public required string ClientId { get; set; }
+        public required string ClientSecret { get; set; }
+        public required string BaseAddress { get; set; }
     }
 }

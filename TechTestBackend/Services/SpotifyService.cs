@@ -17,23 +17,23 @@ namespace TechTestBackend.Services
             _logger = logger;
         }
 
-        private bool HasCorrectId(string id) => id.Length == 22;
+        private static bool HasCorrectId(string id) => id.Length == 22;
 
         public async Task<SpotifySongDto?> GetTrackAsync(string trackId) => await _remoteTracksService.GetTrackAsync(trackId);
 
         public async Task<IEnumerable<SpotifySongDto>?> GetTracksByNameAsync(string trackName) => await _remoteTracksService.GetTracksByNameAsync(trackName);
 
-        public async Task<Result> AddSongAsync(string songId)
+        public async Task<Result> AddSongAsync(string songId, CancellationToken cancellationToken)
         {
             if (!HasCorrectId(songId))
                 return new Result().WithMessage($"The song with id: {songId} has invalid length").WithStatusCode(StatusCode.BadRequest);
 
-            var song = _songsStorageContext.Songs.FirstOrDefault(song => song.Id == songId);
+            var song = await _songsStorageContext.Songs.FirstOrDefaultAsync(song => song.Id == songId, cancellationToken);
             if (song is not null)
                 return new Result().WithMessage($"The song with id: {songId} already exists").WithStatusCode(StatusCode.BadRequest);
 
             var track = await GetTrackAsync(songId);
-            if (track is null)
+            if (track is null || string.IsNullOrWhiteSpace(track.Id) || string.IsNullOrWhiteSpace(track.Name))
                 return new Result().WithMessage($"The song with id: {songId} was not found").WithStatusCode(StatusCode.NotFound);
 
             song = new SpotifySong
@@ -44,8 +44,8 @@ namespace TechTestBackend.Services
 
             try
             {
-                await _songsStorageContext.Songs.AddAsync(song);
-                await _songsStorageContext.SaveChangesAsync();
+                await _songsStorageContext.Songs.AddAsync(song, cancellationToken);
+                await _songsStorageContext.SaveChangesAsync(cancellationToken);
             }
             catch (Exception ex) 
             {
@@ -55,19 +55,19 @@ namespace TechTestBackend.Services
             return new Result().WithStatusCode(StatusCode.Success);
         }
 
-        public async Task<Result> RemoveSongAsync(string songId)
+        public async Task<Result> RemoveSongAsync(string songId, CancellationToken cancellationToken)
         {
             if (!HasCorrectId(songId))
                 return new Result().WithMessage($"The song with id: {songId} has invalid length").WithStatusCode(StatusCode.BadRequest);
 
-            var songToRemove = await _songsStorageContext.Songs.FirstOrDefaultAsync(song => song.Id == songId);
+            var songToRemove = await _songsStorageContext.Songs.FirstOrDefaultAsync(song => song.Id == songId, cancellationToken);
             if (songToRemove is null)
                 return new Result().WithMessage($"The song with id: {songId} does not exist").WithStatusCode(StatusCode.BadRequest);
 
             try
             {
                 _songsStorageContext.Songs.Remove(songToRemove);
-                await _songsStorageContext.SaveChangesAsync();
+                await _songsStorageContext.SaveChangesAsync(cancellationToken);
             }
             catch (Exception ex)
             {
@@ -77,7 +77,7 @@ namespace TechTestBackend.Services
             return new Result().WithStatusCode(StatusCode.Success);
         }
 
-        public async Task<Result<IEnumerable<SpotifySong>>> ListAsync()
+        public async Task<Result<IEnumerable<SpotifySong>>> ListAsync(CancellationToken ct)
         {
             var likedSongsResult = new Result<IEnumerable<SpotifySong>>();
             var likedSongs = new List<SpotifySong>();
@@ -85,12 +85,15 @@ namespace TechTestBackend.Services
 
             var songs = _songsStorageContext.Songs.AsNoTracking();
             if (!songs.Any())
-                return likedSongsResult.WithStatusCode(StatusCode.NotFound);
+                return likedSongsResult.WithStatusCode(StatusCode.NotFound).WithMessage("No liked songs were found");
 
             foreach (var song in songs)
             {
                 if (song is null) 
                     continue;
+
+                if (ct.IsCancellationRequested)
+                    return likedSongsResult.WithStatusCode(StatusCode.None).WithMessage("Operation cancelled");
 
                 var track = await GetTrackAsync(song.Id);
                 if (track is null)
@@ -112,7 +115,7 @@ namespace TechTestBackend.Services
             {
                 try
                 {
-                    await _songsStorageContext.SaveChangesAsync();
+                    await _songsStorageContext.SaveChangesAsync(ct);
                 }
                 catch (Exception ex) 
                 {

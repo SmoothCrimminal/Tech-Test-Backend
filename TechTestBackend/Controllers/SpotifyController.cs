@@ -27,27 +27,27 @@ public class SpotifyController : ControllerBase
 
     [HttpPost]
     [Route("like")]
-    public async Task<IActionResult> LikeAsync(string id)
+    public async Task<IActionResult> LikeAsync(string id, CancellationToken ct)
     {
-        var result = await _spotifyService.AddSongAsync(id);
+        var result = await _spotifyService.AddSongAsync(id, ct);
         
         return HandleResult(result);
     }
     
     [HttpPost]
     [Route("removeLike")]
-    public async Task<IActionResult> RemoveLikeAsync(string id)
+    public async Task<IActionResult> RemoveLikeAsync(string id, CancellationToken ct)
     {
-        var result = await _spotifyService.RemoveSongAsync(id);
+        var result = await _spotifyService.RemoveSongAsync(id, ct);
 
         return HandleResult(result);
     }
     
     [HttpGet]
     [Route("listLiked")]
-    public async Task<IActionResult> ListLikedAsync()
+    public async Task<IActionResult> ListLikedAsync(CancellationToken ct)
     {
-        var result = await _spotifyService.ListAsync();
+        var result = await _spotifyService.ListAsync(ct);
 
         return HandleResult(result);
     }

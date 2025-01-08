@@ -20,7 +20,7 @@
             return result;
         }
 
-        public static Result<T> WiithMessage<T>(this Result<T> result, string message)
+        public static Result<T> WithMessage<T>(this Result<T> result, string message)
         {
             result.Message = message;
             return result;
