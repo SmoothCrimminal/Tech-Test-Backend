@@ -8,11 +8,13 @@ namespace TechTestBackend.Services
     {
         private readonly SongsStorageContext _songsStorageContext;
         private readonly IRemoteTracksService _remoteTracksService;
+        private readonly ILogger<SpotifyService> _logger;
 
-        public SpotifyService(SongsStorageContext songsStorageContext, IRemoteTracksService remoteTracksService)
+        public SpotifyService(SongsStorageContext songsStorageContext, IRemoteTracksService remoteTracksService, ILogger<SpotifyService> logger)
         {
             _songsStorageContext = songsStorageContext;
             _remoteTracksService = remoteTracksService;
+            _logger = logger;
         }
 
         private bool HasCorrectId(string id) => id.Length == 22;
@@ -21,18 +23,18 @@ namespace TechTestBackend.Services
 
         public async Task<IEnumerable<SpotifySongDto>?> GetTracksByNameAsync(string trackName) => await _remoteTracksService.GetTracksByNameAsync(trackName);
 
-        public async Task AddSongAsync(string songId)
+        public async Task<Result> AddSongAsync(string songId)
         {
             if (!HasCorrectId(songId))
-                return;
+                return new Result().WithMessage($"The song with id: {songId} has invalid length").WithStatusCode(StatusCode.BadRequest);
 
             var song = _songsStorageContext.Songs.FirstOrDefault(song => song.Id == songId);
             if (song is not null)
-                return;
+                return new Result().WithMessage($"The song with id: {songId} already exists").WithStatusCode(StatusCode.BadRequest);
 
             var track = await GetTrackAsync(songId);
             if (track is null)
-                return;
+                return new Result().WithMessage($"The song with id: {songId} was not found").WithStatusCode(StatusCode.NotFound);
 
             song = new SpotifySong
             {
@@ -40,31 +42,50 @@ namespace TechTestBackend.Services
                 Name = track.Name
             };
 
-            await _songsStorageContext.Songs.AddAsync(song);
-            await _songsStorageContext.SaveChangesAsync();
+            try
+            {
+                await _songsStorageContext.Songs.AddAsync(song);
+                await _songsStorageContext.SaveChangesAsync();
+            }
+            catch (Exception ex) 
+            {
+                _logger.LogError(ex, "Could not add song with id: {SongId} to database", songId);
+            }
+
+            return new Result().WithStatusCode(StatusCode.Success);
         }
 
-        public async Task RemoveSongAsync(string songId)
+        public async Task<Result> RemoveSongAsync(string songId)
         {
             if (!HasCorrectId(songId))
-                return;
+                return new Result().WithMessage($"The song with id: {songId} has invalid length").WithStatusCode(StatusCode.BadRequest);
 
             var songToRemove = await _songsStorageContext.Songs.FirstOrDefaultAsync(song => song.Id == songId);
-            if (songToRemove is null) 
-                return;
+            if (songToRemove is null)
+                return new Result().WithMessage($"The song with id: {songId} does not exist").WithStatusCode(StatusCode.BadRequest);
 
-            _songsStorageContext.Songs.Remove(songToRemove);
-            await _songsStorageContext.SaveChangesAsync();
+            try
+            {
+                _songsStorageContext.Songs.Remove(songToRemove);
+                await _songsStorageContext.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Could not remove song with id: {SongId}", songId);
+            }
+
+            return new Result().WithStatusCode(StatusCode.Success);
         }
 
-        public async Task<IEnumerable<SpotifySong>> ListAsync()
+        public async Task<Result<IEnumerable<SpotifySong>>> ListAsync()
         {
+            var likedSongsResult = new Result<IEnumerable<SpotifySong>>();
             var likedSongs = new List<SpotifySong>();
             var wasAnySongRemoved = false;
 
             var songs = _songsStorageContext.Songs.AsNoTracking();
             if (!songs.Any())
-                return likedSongs;
+                return likedSongsResult.WithStatusCode(StatusCode.NotFound);
 
             foreach (var song in songs)
             {
@@ -89,10 +110,17 @@ namespace TechTestBackend.Services
 
             if (wasAnySongRemoved)
             {
-                await _songsStorageContext.SaveChangesAsync();
+                try
+                {
+                    await _songsStorageContext.SaveChangesAsync();
+                }
+                catch (Exception ex) 
+                {
+                    _logger.LogError(ex, "Could not remove songs from db in method {MethodName}", nameof(ListAsync));
+                }
             }
 
-            return likedSongs;
+            return likedSongsResult.WithData(songs).WithStatusCode(StatusCode.Success);
         }
     }
 }
