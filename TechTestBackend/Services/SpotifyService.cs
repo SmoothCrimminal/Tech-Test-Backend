@@ -104,8 +104,10 @@ namespace TechTestBackend.Services
                 }
                 else
                 {
-                    if (likedSongs.Any(ls => ls.Name == track.Name))
-                        continue;
+                    // this checks if there is any song with the same name already in the list,
+                    // but this might break previous functionality of code so commented out for now
+                    /*if (likedSongs.Any(ls => ls.Name == track.Name))
+                        continue;*/
 
                     likedSongs.Add(song);
                 }
